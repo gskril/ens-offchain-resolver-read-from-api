@@ -4,7 +4,7 @@ import { ethers } from 'ethers';
 import { database } from './db';
 
 const privateKey = process.env.PRIVATE_KEY;
-const port = process.env.PRIVATE_KEY || '8080';
+const port = process.env.PORT || '8080';
 
 if (!privateKey) {
   throw new Error('Missing PRIVATE_KEY or PORT env var');
