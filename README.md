@@ -1,6 +1,9 @@
 # ENS Offchain Resolver Gateway
 
-This package implements a simple CCIP-read gateway server for ENS offchain resolution that fetches name data from an external API.
+> [!NOTE]  
+> See [gskril/ens-offchain-registrar](https://github.com/gskril/ens-offchain-registrar) for a more modern example.
+
+This repo implements a simple CCIP-read gateway server for ENS offchain resolution that fetches name data from an external API.
 
 ## Usage:
 
