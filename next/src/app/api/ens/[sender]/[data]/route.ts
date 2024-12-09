@@ -27,13 +27,13 @@ const ENS_DATA_SIGNER_KEY = process.env.ENS_DATA_SIGNER_KEY
 
 export async function GET(
   request: NextRequest,
-  { params }: { [key: string]: string }
+  { params }: { params: Promise<{ [key: string]: string }> }
 ) {
   // Validate params
-  const parsedParams = REQUEST_SCHEMA.safeParse(params)
+  const parsedParams = REQUEST_SCHEMA.safeParse(await params)
   if (!parsedParams.success) {
     return Response.json(
-      { message: parsedParams.error.message },
+      { message: 'Invalid params', error: parsedParams.error },
       { status: 400, headers: { ...CORS_HEADERS } }
     )
   }
@@ -41,17 +41,39 @@ export async function GET(
   // Validate signing key
   if (!isHex(ENS_DATA_SIGNER_KEY)) {
     return Response.json(
-      { message: 'ENS_DATA_SIGNER_KEY is not set' },
+      {
+        message:
+          "ENS_DATA_SIGNER_KEY is not set or is not valid. It should start with '0x'",
+      },
       { status: 500, headers: { ...CORS_HEADERS } }
     )
   }
 
   // Decode request
   const { sender, data } = parsedParams.data
-  const { name, query } = decodeEnsOffchainRequest({ sender, data })
+  let name: string, query: ResolverQuery
+
+  try {
+    const decodedOffchainRequest = decodeEnsOffchainRequest({ sender, data })
+    name = decodedOffchainRequest.name
+    query = decodedOffchainRequest.query
+  } catch (error) {
+    return Response.json(
+      { message: 'Failed to decode request', error },
+      { status: 400, headers: { ...CORS_HEADERS } }
+    )
+  }
 
   // Fetch the relevant data from an external API
-  const result = await fetchOffchainEnsName(name, query)
+  let result: string
+  try {
+    result = await fetchOffchainEnsName(name, query)
+  } catch {
+    return Response.json(
+      { message: 'Failed to fetch data' },
+      { status: 500, headers: { ...CORS_HEADERS } }
+    )
+  }
 
   return Response.json(
     {
@@ -74,36 +96,33 @@ async function fetchOffchainEnsName(
 ): Promise<string> {
   const { functionName, args } = query
 
-  try {
-    // Hit an external API
-    const response = await fetch(`https://api.your-domain.com/${name}`)
+  // Hit an external API
+  const response = await fetch(`https://api.your-domain.com/${name}`)
+  const data = await response.json()
 
-    // Parse the response as a JSON object. NOTE: Your response format will likely be different
-    const json = (await response.json()) as {
-      addresses?: Record<string, string>
-      texts?: Record<string, string>
-      contenthash?: string
-    }
+  // Parse the response as a JSON object
+  // NOTE: Your response format will likely be different
+  const json = data as {
+    addresses?: Record<string, string>
+    texts?: Record<string, string>
+    contenthash?: string
+  }
 
-    // Handle the different query functions
-    switch (functionName) {
-      case 'addr': {
-        const coinType = args[1] ?? BigInt(60)
-        return json.addresses?.[coinType.toString()] ?? zeroAddress
-      }
-      case 'text': {
-        const key = args[1]
-        return json.texts?.[key] ?? ''
-      }
-      case 'contenthash': {
-        return json.contenthash ?? '0x'
-      }
-      default: {
-        throw new Error(`Unsupported query function ${functionName}`)
-      }
+  // Handle the different query functions
+  switch (functionName) {
+    case 'addr': {
+      const coinType = args[1] ?? BigInt(60)
+      return json.addresses?.[coinType.toString()] ?? zeroAddress
     }
-  } catch (err) {
-    console.error('Error fetching offchain name', err)
-    return '0x'
+    case 'text': {
+      const key = args[1]
+      return json.texts?.[key] ?? ''
+    }
+    case 'contenthash': {
+      return json.contenthash ?? '0x'
+    }
+    default: {
+      throw new Error(`Unsupported query function ${functionName}`)
+    }
   }
 }
