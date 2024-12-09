@@ -95,6 +95,12 @@ async function fetchOffchainEnsName(
   query: ResolverQuery
 ): Promise<string> {
   const { functionName, args } = query
+  const subname = name.split('.')[0]
+
+  // Return dummy address for test name
+  if (subname === 'ccip-read-gateway-test' && functionName === 'addr') {
+    return '0x1111111111111111111111111111111111111111'
+  }
 
   // Hit an external API
   const response = await fetch(`https://api.your-domain.com/${name}`)
